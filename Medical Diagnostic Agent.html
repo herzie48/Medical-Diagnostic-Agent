@@ -1,0 +1,655 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Medical Diagnostic Agent</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a consultation chat on the left; "under the hood" instrument panels on the right,
+   each algorithm tagged with the course outcome (CO1-CO5) it demonstrates. */
+:root{
+  --bg:#EBEFF3; --surface:#FFFFFF; --surface2:#F3F6F9; --ink:#15202B; --muted:#5A6774; --line:#D3DAE1;
+  --accent:#0C7A64; --accent-ink:#FFFFFF; --accent-soft:#DDF1EC;
+  --warn:#9A5B00; --warn-soft:#FBEBD0; --crit:#B3261E; --crit-soft:#FBE3E0; --good:#1B7F3B;
+  --co1:#6A57D0; --co2:#1F6FCB; --co3:#B8650A; --co4:#B8336E; --co5:#4E7D14;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1318; --surface:#151D25; --surface2:#1B252F; --ink:#E7EDF2; --muted:#93A1AD; --line:#2A3641;
+  --accent:#3CCBA6; --accent-ink:#06241C; --accent-soft:#12312B;
+  --warn:#F0B25E; --warn-soft:#33260F; --crit:#FF8A80; --crit-soft:#3A1816; --good:#6FD38C;
+  --co1:#AB9FF2; --co2:#74B3F4; --co3:#F0B25E; --co4:#F28AB6; --co5:#A8D663; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1318; --surface:#151D25; --surface2:#1B252F; --ink:#E7EDF2; --muted:#93A1AD; --line:#2A3641;
+  --accent:#3CCBA6; --accent-ink:#06241C; --accent-soft:#12312B;
+  --warn:#F0B25E; --warn-soft:#33260F; --crit:#FF8A80; --crit-soft:#3A1816; --good:#6FD38C;
+  --co1:#AB9FF2; --co2:#74B3F4; --co3:#F0B25E; --co4:#F28AB6; --co5:#A8D663; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14.5px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:flex;flex-direction:column;height:100%;gap:10px;max-width:1500px;margin:0 auto}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{flex:1;min-width:200px}
+.brand h1{margin:0;font:700 21px/1.15 var(--display);letter-spacing:-.01em;text-wrap:balance}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.seg{display:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:2px}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500}
+.seg button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.ghost{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:500}
+.ghost:hover{border-color:var(--accent)}
+.grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:12px}
+.pane{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.scroll{overflow-y:auto;min-height:0;flex:1}
+#chat{padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:92%;padding:10px 12px;border-radius:12px;min-width:0;overflow-wrap:anywhere}
+.msg.agent{background:var(--surface2);border-top-left-radius:4px;align-self:flex-start}
+.msg.user{background:var(--accent);color:var(--accent-ink);align-self:flex-end;border-bottom-right-radius:4px;font-weight:500}
+.msg.agent.wide{max-width:100%;width:100%}
+.meta{display:block;margin-top:4px;font:400 11.5px/1.4 var(--mono);color:var(--muted)}
+.answers{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.answers button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 16px;cursor:pointer;font-weight:600}
+.answers button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.answers button:disabled{opacity:.45;cursor:default}
+.answers button.yes{border-color:var(--accent)}
+.hello h2{margin:0 0 4px;font:700 17px/1.2 var(--display)}
+.hello p{margin:0 0 10px;color:var(--muted)}
+form.intake{display:grid;grid-template-columns:1fr 90px;gap:8px 10px}
+form.intake label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);font-weight:500;min-width:0}
+form.intake input[type=text],form.intake input[type=number]{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;color:var(--ink);min-width:0;width:100%}
+form.intake .full{grid-column:1/-1}
+.checks{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13px;color:var(--ink)}
+.checks label{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-weight:400;font-size:13px}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer}
+.primary:hover{filter:brightness(1.08)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chips button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;font-size:12.5px;cursor:pointer}
+.chips button:hover{border-color:var(--accent);color:var(--accent)}
+.lbl{font:600 11px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px;display:block}
+.result h3{margin:0 0 2px;font:700 18px/1.2 var(--display)}
+.banner{border-radius:8px;padding:9px 11px;margin:8px 0;font-weight:500}
+.banner.crit{background:var(--crit-soft);color:var(--crit)}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.plan{display:grid;gap:8px;margin:10px 0 0;padding:0;list-style:none}
+.plan li{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;align-items:baseline}
+.plan b{font-weight:600}
+.links{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.links button{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:5px 10px;font-size:12.5px;cursor:pointer}
+.links button:hover{border-color:var(--accent);color:var(--accent)}
+.disc{font-size:12px;color:var(--muted);margin-top:8px}
+
+.tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line);padding:6px 8px 0;flex:none}
+.tabs button{border:0;background:none;padding:8px 11px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel{display:none;padding:14px}
+.hood[data-tab="trace"] #pn-trace,.hood[data-tab="belief"] #pn-belief,.hood[data-tab="path"] #pn-path,
+.hood[data-tab="decide"] #pn-decide,.hood[data-tab="logic"] #pn-logic,.hood[data-tab="learn"] #pn-learn,
+.hood[data-tab="about"] #pn-about{display:block}
+.panel h3{margin:0 0 4px;font:700 16px/1.25 var(--display)}
+.panel h4{margin:16px 0 6px;font:600 13px/1.3 var(--body)}
+.panel p{margin:0 0 8px}
+.sub{color:var(--muted);font-size:13px}
+.note{color:var(--muted);font-size:12.5px;margin:8px 0 0}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:16px;color:var(--muted);text-align:center}
+.chip{display:inline-block;font:500 11px/1 var(--mono);padding:4px 6px;border-radius:4px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--surface));white-space:nowrap}
+.co1{--c:var(--co1)}.co2{--c:var(--co2)}.co3{--c:var(--co3)}.co4{--c:var(--co4)}.co5{--c:var(--co5)}
+.tr{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);align-items:start}
+.tr:last-child{border-bottom:0}
+.trt{font:400 12.5px/1.45 var(--mono);min-width:0;overflow-wrap:anywhere}
+.bar{display:grid;grid-template-columns:minmax(90px,150px) 1fr 44px;gap:8px;align-items:center;padding:3px 0}
+.bn{font-size:13px;overflow-wrap:anywhere}
+.bt{height:10px;background:var(--surface2);border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+.bt i{display:block;height:100%;background:var(--accent);border-radius:5px;transition:width .35s}
+.bp{font:500 12px/1 var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.tbl{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.hl td{background:var(--accent-soft)}
+.mono{font-family:var(--mono);font-size:12px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+.pill.ok{background:var(--accent-soft);color:var(--accent)}
+.pill.no{background:var(--crit-soft);color:var(--crit)}
+.sel{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.sel button{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:5px 11px;cursor:pointer}
+.sel button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.sliders{display:grid;gap:6px;margin:8px 0}
+.sliders label{display:grid;grid-template-columns:78px 1fr 40px;gap:8px;align-items:center;font-size:13px}
+.sliders input[type=range]{width:100%;accent-color:var(--accent);min-width:0}
+.rule{font:400 12.5px/1.5 var(--mono);padding:5px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.rule b{color:var(--co4)}
+.steps{display:grid;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+@media (max-width:880px){
+  .seg{display:inline-flex}
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .app[data-view="chat"] .hood{display:none}
+  .app[data-view="hood"] .chatpane{display:none}
+  .sliders label{grid-template-columns:70px 1fr 36px}
+}
+@media (prefers-reduced-motion:reduce){.bt i{transition:none}}
+</style>
+
+<div class="app" id="app" data-view="chat">
+  <header class="top">
+    <div class="brand">
+      <h1>DIAGNOVA</h1>
+      <h2>Medical Diagnostic Agent</h2>
+      <p>AI demo. Educational only, not medical advice.</p>
+    </div>
+    <div class="seg" role="tablist" aria-label="View">
+      <button role="tab" data-v="chat" aria-selected="true">Consultation</button>
+      <button role="tab" data-v="hood" aria-selected="false">Under the hood</button>
+    </div>
+    <button class="ghost" id="restart" type="button">Restart</button>
+  </header>
+  <main class="grid">
+    <section class="pane chatpane" aria-label="Consultation"><div id="chat" class="scroll"></div></section>
+    <section class="pane hood" id="hood" data-tab="trace" aria-label="Under the hood">
+      <nav class="tabs" id="tabs" role="tablist">
+        <button role="tab" data-t="trace" aria-selected="true">Live trace</button>
+        <button role="tab" data-t="belief" aria-selected="false">Belief</button>
+        <button role="tab" data-t="path" aria-selected="false">Search</button>
+        <button role="tab" data-t="decide" aria-selected="false">Decisions</button>
+        <button role="tab" data-t="logic" aria-selected="false">Logic</button>
+        <button role="tab" data-t="learn" aria-selected="false">Learning</button>
+        <button role="tab" data-t="about" aria-selected="false">Course map</button>
+      </nav>
+      <div class="scroll">
+        <div class="panel" id="pn-trace">
+          <h3>Live trace</h3>
+          <p class="sub">Every step the agent takes, tagged with the course outcome it uses.</p>
+          <div id="trace"><div class="empty">Start a consultation to watch the agent reason.</div></div>
+        </div>
+        <div class="panel" id="pn-belief">
+          <h3>Belief over diseases</h3>
+          <p class="sub">Naive Bayes posterior (CO5) updated after each answer. Age constraints (CO3) remove impossible diseases first.</p>
+          <div id="belief"><div class="empty">The probabilities appear after the first answer.</div></div>
+        </div>
+        <div class="panel" id="pn-path">
+          <h3>Care pathway search</h3>
+          <p class="sub">Find the cheapest way from Triage to a confirmed diagnosis. Cost is test fee plus waiting cost.</p>
+          <div class="sel" id="pathsel"></div>
+          <div id="pathout"></div>
+        </div>
+        <div class="panel" id="pn-decide">
+          <h3>Treatment under uncertainty (game tree)</h3>
+          <p class="sub">Doctor (MAX) picks a treatment, nature (MIN) picks the true condition and complications. Change the diagnosis weights to compare worst-case and expected choices.</p>
+          <div class="sliders" id="sliders"></div>
+          <div id="treatout"></div>
+          <h3 style="margin-top:20px">Safe prescription (constraint satisfaction)</h3>
+          <div id="cspout"></div>
+        </div>
+        <div class="panel" id="pn-logic">
+          <h3>First-order logic</h3>
+          <p class="sub">Rules use variables, so one rule covers every patient. Unification matches them to facts.</p>
+          <div id="logiclive"></div>
+          <h4>Knowledge base</h4>
+          <div id="rules"></div>
+          <h4>Unification examples</h4>
+          <div id="unif"></div>
+          <h4>First-order versus propositional inference</h4>
+          <div id="ground"></div>
+        </div>
+        <div class="panel" id="pn-learn">
+          <h3>Learning paradigms</h3>
+          <p class="sub">Trained in your browser on 3000 synthetic patient records.</p>
+          <div id="learnout"><div class="empty">Training the models...</div></div>
+        </div>
+        <div class="panel" id="pn-about">
+          <h3>Course map</h3>
+          <div class="tbl"><table>
+            <thead><tr><th>CO</th><th>Topic</th><th>Where it runs here</th></tr></thead>
+            <tbody>
+              <tr><td><span class="chip co1">CO1</span></td><td>Agents, PEAS</td><td>The whole consultation is a percept, update, reason, act loop.</td></tr>
+              <tr><td><span class="chip co2">CO2</span></td><td>Uninformed and informed search</td><td>Care pathway: BFS, DFS, UCS, greedy, A*. Next question chosen greedily by information gain.</td></tr>
+              <tr><td><span class="chip co3">CO3</span></td><td>Minimax, alpha-beta, CSP</td><td>Treatment game tree and the safe prescription solver. Age and ordering constraints.</td></tr>
+              <tr><td><span class="chip co4">CO4</span></td><td>First-order logic</td><td>Red flags, isolation and household risk by forward and backward chaining.</td></tr>
+              <tr><td><span class="chip co5">CO5</span></td><td>Learning paradigms</td><td>Naive Bayes diagnosis, k-means clusters, Q-learning of treatments.</td></tr>
+            </tbody></table></div>
+          <h4>PEAS description</h4>
+          <div class="tbl"><table><tbody>
+            <tr><th>Performance</th><td>Correct diagnosis, few questions, low test cost, safe prescription, no missed emergency</td></tr>
+            <tr><th>Environment</th><td>Patient, hospital pathway, drug formulary</td></tr>
+            <tr><th>Actuators</th><td>Ask, order tests, prescribe, escalate</td></tr>
+            <tr><th>Sensors</th><td>Yes/no answers, age, allergies, history, household</td></tr>
+          </tbody></table></div>
+          <p class="note">Environment: partially observable, single agent, stochastic, sequential, semi-dynamic, discrete. The agent is goal-based and utility-based with a learning component.</p>
+          <p class="note">Data and probabilities are synthetic and illustrative. Do not use this for real health decisions.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ===================== ENGINE (pure logic, no DOM) ===================== */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const SYM=[["fever","Do you have a fever?"],["high_fever","Is the fever high (above 39 C / 102 F)?"],["cough","Do you have a cough?"],
+["sore_throat","Do you have a sore throat?"],["runny_nose","Do you have a runny nose?"],["sneezing","Are you sneezing a lot?"],
+["itchy_eyes","Do you have itchy or watery eyes?"],["body_ache","Do you have body aches?"],["headache","Do you have a headache?"],
+["fatigue","Do you feel unusually tired?"],["nausea","Do you feel nauseous?"],["vomiting","Have you been vomiting?"],
+["diarrhea","Do you have diarrhea?"],["abdominal_pain","Do you have abdominal pain?"],["shortness_of_breath","Are you short of breath?"],
+["chest_pain","Do you have chest pain?"],["loss_of_smell","Have you lost your sense of smell or taste?"],["rash","Do you have a skin rash?"],
+["joint_pain","Do you have joint pain?"],["light_sensitivity","Does light bother your eyes?"]];
+const KEYS=SYM.map(s=>s[0]), QTEXT=Object.fromEntries(SYM);
+const PARENT={high_fever:"fever"}, DEFAULT_P=0.03;
+const DIS={
+"Common cold":{prior:.25,min:0,p:{runny_nose:.9,sneezing:.7,cough:.6,sore_throat:.6,fever:.15,high_fever:.05,headache:.2,fatigue:.3,body_ache:.2}},
+"Influenza":{prior:.12,min:0,p:{fever:.9,high_fever:.55,cough:.8,body_ache:.85,headache:.6,fatigue:.8,sore_throat:.4,runny_nose:.4,nausea:.15}},
+"COVID-19":{prior:.10,min:0,p:{fever:.75,high_fever:.33,cough:.7,fatigue:.7,loss_of_smell:.6,body_ache:.5,sore_throat:.4,headache:.5,shortness_of_breath:.2,diarrhea:.1}},
+"Allergic rhinitis":{prior:.15,min:2,p:{sneezing:.9,runny_nose:.85,itchy_eyes:.75,headache:.15,cough:.2,fever:.02}},
+"Dengue":{prior:.05,min:0,p:{fever:.98,high_fever:.87,headache:.8,body_ache:.8,joint_pain:.7,rash:.5,nausea:.5,vomiting:.3,fatigue:.7,abdominal_pain:.3}},
+"Gastroenteritis":{prior:.12,min:0,p:{diarrhea:.9,vomiting:.7,nausea:.8,abdominal_pain:.8,fever:.4,high_fever:.15,fatigue:.5,body_ache:.2}},
+"Migraine":{prior:.08,min:6,p:{headache:.98,nausea:.6,light_sensitivity:.8,vomiting:.3,fatigue:.3,fever:.01}},
+"Pneumonia":{prior:.04,min:0,p:{cough:.9,fever:.8,high_fever:.5,shortness_of_breath:.7,chest_pain:.5,fatigue:.7,body_ache:.3}},
+"Strep throat":{prior:.09,min:3,p:{sore_throat:.98,fever:.7,high_fever:.43,headache:.4,abdominal_pain:.2,cough:.1,runny_nose:.1,rash:.1,nausea:.2}}};
+
+/* ---- CO5: synthetic data + Naive Bayes ---- */
+function generate(n,seed){const r=mulberry32(seed),names=Object.keys(DIS),rows=[];
+  for(let i=0;i<n;i++){const u=r();let acc=0,d=names[names.length-1];for(const nm of names){acc+=DIS[nm].prior;if(u<acc){d=nm;break}}
+    const row={};for(const s of KEYS){const par=PARENT[s];if(par&&!row[par]){row[s]=0;continue}
+      const p=DIS[d].p[s]!==undefined?DIS[d].p[s]:DEFAULT_P;row[s]=r()<p?1:0}
+    rows.push([row,d])}return rows}
+function fit(rows,alpha=1){const n=rows.length,cnt={};rows.forEach(([,d])=>cnt[d]=(cnt[d]||0)+1);
+  const classes=Object.keys(cnt).sort(),prior={};classes.forEach(d=>prior[d]=(cnt[d]+alpha)/(n+alpha*classes.length));
+  const yes={},tot={};for(const [row,d] of rows)for(const s of KEYS){const par=PARENT[s];if(par&&!row[par])continue;const k=d+"|"+s;tot[k]=(tot[k]||0)+1;yes[k]=(yes[k]||0)+row[s]}
+  const p={};classes.forEach(d=>KEYS.forEach(s=>{const k=d+"|"+s;p[k]=((yes[k]||0)+alpha)/((tot[k]||0)+2*alpha)}));
+  return {classes,prior,p}}
+function posterior(m,dis,ev){const sc={};let tot=0;
+  for(const d of dis){let v=m.prior[d];for(const s in ev){const e=ev[s];if(e===null||e===undefined)continue;const par=PARENT[s];if(par&&ev[par]!==true)continue;const p=m.p[d+"|"+s];v*=e?p:1-p}sc[d]=v;tot+=v}
+  tot=tot||1e-12;for(const d in sc)sc[d]/=tot;return sc}
+const Hn=o=>-Object.values(o).reduce((a,p)=>a+(p>0?p*Math.log2(p):0),0);
+function infoGain(m,s,dis,ev,post){let py=0;for(const d of dis)py+=post[d]*m.p[d+"|"+s];let eh=0;
+  for(const [a,pa] of [[true,py],[false,1-py]]){if(pa>1e-9)eh+=pa*Hn(posterior(m,dis,{...ev,[s]:a}))}return Hn(post)-eh}
+const PRE={high_fever:["fever",true]}, IMPL={fever:"high_fever"};
+function askable(s,ev){if(Object.prototype.hasOwnProperty.call(ev,s))return false;if(PRE[s])return ev[PRE[s][0]]===PRE[s][1];return true}
+
+/* ---- CO4: first-order logic ---- */
+const RULES=[
+["R1",[["Has","?p","fever"],["Has","?p","cough"],["Has","?p","body_ache"]],["Suspects","?p","influenza"]],
+["R2",[["Has","?p","fever"],["Has","?p","joint_pain"],["Has","?p","rash"]],["Suspects","?p","dengue"]],
+["R3",[["Suspects","?p","dengue"],["Has","?p","vomiting"]],["RedFlag","?p","dengue_warning_signs"]],
+["R4",[["Has","?p","shortness_of_breath"],["Has","?p","chest_pain"]],["RedFlag","?p","cardio_respiratory"]],
+["R5",[["Has","?p","vomiting"],["Has","?p","diarrhea"],["Has","?p","high_fever"]],["RedFlag","?p","dehydration"]],
+["R9",[["Has","?p","cough"],["Has","?p","shortness_of_breath"]],["Suspects","?p","pneumonia"]],
+["R6",[["RedFlag","?p","?x"]],["Emergency","?p"]],
+["R7",[["Suspects","?p","?d"],["Contagious","?d"]],["Isolate","?p"]],
+["R8",[["Suspects","?p","?d"],["Contagious","?d"],["LivesWith","?p","?q"]],["AtRisk","?q","?d"]]];
+const BASE_FACTS=[["Contagious","influenza"],["Contagious","covid"],["Contagious","common_cold"]];
+const isVar=x=>typeof x==="string"&&x[0]==="?";
+const J=JSON.stringify, eq=(a,b)=>J(a)===J(b);
+function occurs(v,x,th){if(v===x)return true;if(isVar(x)&&x in th)return occurs(v,th[x],th);if(Array.isArray(x))return x.slice(1).some(a=>occurs(v,a,th));return false}
+function unifyVar(v,x,th){if(v in th)return unify(th[v],x,th);if(isVar(x)&&x in th)return unify(v,th[x],th);if(occurs(v,x,th))return null;return {...th,[v]:x}}
+function unify(x,y,th){if(th===null)return null;if(eq(x,y))return th;if(isVar(x))return unifyVar(x,y,th);if(isVar(y))return unifyVar(y,x,th);
+  if(Array.isArray(x)&&Array.isArray(y)&&x.length===y.length){for(let i=0;i<x.length;i++){th=unify(x[i],y[i],th);if(th===null)return null}return th}return null}
+function subst(th,x){if(isVar(x))return x in th?subst(th,th[x]):x;if(Array.isArray(x))return x.map(a=>subst(th,a));return x}
+function fmtAtom(a){return a[0]+"("+a.slice(1).map(t=>Array.isArray(t)?fmtAtom(t):(isVar(t)?t.slice(1):t)).join(", ")+")"}
+function fmtTheta(th){return "{"+Object.entries(th).map(([k,v])=>k.slice(1)+"/"+(Array.isArray(subst(th,v))?fmtAtom(subst(th,v)):String(subst(th,v)).replace(/^\?/,""))).join(", ")+"}"}
+function ruleVars(pr,c){return [...new Set([...pr,c].flatMap(a=>a.slice(1).filter(isVar)))].sort()}
+function fmtRule(pr,c){const vs=ruleVars(pr,c).map(v=>v.slice(1));return (vs.length?"∀"+vs.join(",")+"  ":"")+pr.map(fmtAtom).join(" ∧ ")+"  ⇒  "+fmtAtom(c)}
+function matchAll(prem,facts,th){if(!prem.length)return [th];const first=subst(th,prem[0]);
+  if(!first.slice(1).some(isVar))return facts.has(J(first))?matchAll(prem.slice(1),facts,th):[];
+  let out=[];for(const f of facts.values()){const t2=unify(first,f,th);if(t2!==null)out=out.concat(matchAll(prem.slice(1),facts,t2))}return out}
+function forwardChain(base,rules){const facts=new Map(base),derived=[];
+  for(;;){const nw=[];for(const [name,prem,concl] of rules)for(const th of matchAll(prem,facts,{})){const c=subst(th,concl),k=J(c);
+      if(!facts.has(k)&&!nw.some(([,a])=>J(a)===k))nw.push([name,c])}
+    if(!nw.length)return {facts,derived};for(const [n,c] of nw){facts.set(J(c),c);derived.push([n,c])}}}
+let fresh=0;const rename=(atoms,k)=>atoms.map(a=>a.map(t=>isVar(t)?t+"_"+k:t));
+function* bc(goals,th,facts,rules){if(!goals.length){yield th;return}
+  const goal=subst(th,goals[0]),rest=goals.slice(1);
+  for(const f of facts.values()){const t2=unify(goal,f,th);if(t2!==null)yield* bc(rest,t2,facts,rules)}
+  for(const [,prem,concl] of rules){const k=fresh++;const t2=unify(goal,rename([concl],k)[0],th);if(t2!==null)yield* bc([...rename(prem,k),...rest],t2,facts,rules)}}
+function ask(goal,facts){const out=[];for(const th of bc([goal],{},facts,RULES)){const a=subst(th,goal);if(!out.some(x=>eq(x,a)))out.push(a)}return out}
+function initialFacts(p){const f=new Map();for(const a of BASE_FACTS)f.set(J(a),a);
+  for(const h of p.household){for(const a of [["LivesWith",p.key,h],["LivesWith",h,p.key]])f.set(J(a),a)}return f}
+function nearMisses(name,facts){const out=[];for(const [rn,prem] of RULES){
+    if(prem.length>=2&&prem.every(p=>p[0]==="Has"&&p[1]==="?p"&&!isVar(p[2]))){
+      const miss=prem.filter(p=>!facts.has(J(["Has",name,p[2]]))).map(p=>p[2]);if(miss.length===1)out.push([miss[0],rn])}}return out}
+function constantsOf(facts){const s=new Set();for(const a of facts.values())a.slice(1).forEach(t=>{if(!isVar(t))s.add(t)});
+  for(const [,pr,c] of RULES)for(const a of [...pr,c])a.slice(1).forEach(t=>{if(!isVar(t))s.add(t)});return [...s].sort()}
+function groundRules(consts){const out=[],k=consts.length;for(const [n,pr,c] of RULES){const vs=ruleVars(pr,c),total=Math.pow(k,vs.length);
+    for(let i=0;i<total;i++){let x=i;const th={};for(const v of vs){th[v]=consts[x%k];x=Math.floor(x/k)}out.push([n,pr.map(a=>J(subst(th,a))),J(subst(th,c))])}}return out}
+function propChain(base,gr){const facts=new Set(base.keys());let ch=true,n=0;while(ch){ch=false;for(const [,pr,c] of gr){if(!facts.has(c)&&pr.every(p=>facts.has(p))){facts.add(c);n++;ch=true}}}return {facts,n}}
+const groundedCount=(k)=>RULES.reduce((s,[,pr,c])=>s+Math.pow(k,ruleVars(pr,c).length),0);
+
+/* ---- CO2: search on the care pathway ---- */
+const EDGES=[["Triage","Vitals",50,10],["Triage","GP",300,60],["Vitals","GP",150,20],["Vitals","CBC",250,30],["Vitals","RapidAg",350,20],
+["GP","CBC",250,30],["GP","RapidAg",400,20],["GP","CXR",600,50],["GP","Specialist",1200,200],["CBC","NS1",700,40],["CBC","Culture",900,300],
+["CBC","Specialist",1200,150],["Specialist","NS1",500,30],["Specialist","Dengue_Confirmed",800,200],["RapidAg","Flu_Confirmed",150,10],
+["RapidAg","PCR",1500,120],["PCR","Flu_Confirmed",200,10],["CXR","Pneumonia_Confirmed",200,20],["CXR","CT",3000,200],
+["CT","Pneumonia_Confirmed",200,20],["Culture","Pneumonia_Confirmed",400,100],["NS1","Dengue_Confirmed",100,10]];
+const GOALS={Dengue:"Dengue_Confirmed",Pneumonia:"Pneumonia_Confirmed",Influenza:"Flu_Confirmed"};
+const GRAPH={},REV={};for(const [a,b,t,w] of EDGES){(GRAPH[a]=GRAPH[a]||[]).push([b,t+w]);(REV[b]=REV[b]||[]).push([a,t])}
+function hTable(goal){const h={[goal]:0},pq=[[0,goal]];while(pq.length){pq.sort((x,y)=>x[0]-y[0]);const [d,n]=pq.shift();if(d>(h[n]===undefined?Infinity:h[n]))continue;
+    for(const [pv,c] of REV[n]||[]){if(d+c<(h[pv]===undefined?Infinity:h[pv])){h[pv]=d+c;pq.push([d+c,pv])}}}return h}
+function search(algo,start,goal){const h=hTable(goal),expanded=[],done=(path,cost)=>({algo,path,cost,expanded:expanded.length});
+  if(algo==="BFS"){const fr=[[start,[start],0]],seen=new Set([start]);while(fr.length){const [n,path,g]=fr.shift();expanded.push(n);
+      for(const [nx,c] of GRAPH[n]||[]){if(nx===goal)return done([...path,nx],g+c);if(!seen.has(nx)){seen.add(nx);fr.push([nx,[...path,nx],g+c])}}}return null}
+  if(algo==="DFS"){const st=[[start,[start],0]],ex=new Set();while(st.length){const [n,path,g]=st.pop();if(n===goal)return done(path,g);if(ex.has(n))continue;ex.add(n);expanded.push(n);
+      for(const [nx,c] of [...(GRAPH[n]||[])].reverse())if(!ex.has(nx))st.push([nx,[...path,nx],g+c])}return null}
+  const hv=n=>h[n]===undefined?Infinity:h[n];
+  const key={UCS:(g)=>g,Greedy:(g,n)=>hv(n),"A*":(g,n)=>g+hv(n)}[algo];
+  let tie=0;const pq=[[key(0,start),tie++,start,[start],0]],best={};
+  while(pq.length){pq.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const [,,n,path,g]=pq.shift();if(n===goal)return done(path,g);
+    if(n in best&&best[n]<=g)continue;best[n]=g;expanded.push(n);
+    for(const [nx,c] of GRAPH[n]||[]){const k=key(g+c,nx);if(k<Infinity)pq.push([k,tie++,nx,[...path,nx],g+c])}}return null}
+const ALGOS=[["BFS","uninformed"],["DFS","uninformed"],["UCS","uninformed"],["Greedy","informed"],["A*","informed"]];
+
+/* ---- CO3: minimax / alpha-beta / expectimax ---- */
+const TR=["Antibiotic","Antiviral","Supportive"],CO=["Bacterial","Viral","Dengue"],FU=["Continue","Add supportive care","Hospitalize"],OU=["No complication","Complication"];
+const LV=[["MAX",TR],["MIN",CO],["MAX",FU],["MIN",OU]];
+const EFF={Antibiotic:{Bacterial:85,Viral:30,Dengue:20},Antiviral:{Bacterial:25,Viral:80,Dengue:35},Supportive:{Bacterial:40,Viral:60,Dengue:70}};
+const HB={Bacterial:20,Viral:5,Dengue:30}, PCOMP=0.25;
+function util(t,c,f,o){const bonus={Continue:0,"Add supportive care":10,Hospitalize:HB[c]-15}[f];
+  const pen=o==="Complication"?{Continue:35,"Add supportive care":20,Hospitalize:5}[f]:0;return Math.max(0,Math.min(100,EFF[t][c]+bonus-pen))}
+function mm(path,cnt){cnt.n++;if(path.length===4)return util(...path);const [k,opts]=LV[path.length];const v=opts.map(o=>mm([...path,o],cnt));return k==="MAX"?Math.max(...v):Math.min(...v)}
+function ab(path,al,be,cnt){cnt.n++;if(path.length===4)return util(...path);const [k,opts]=LV[path.length];
+  if(k==="MAX"){let v=-Infinity;for(const o of opts){v=Math.max(v,ab([...path,o],al,be,cnt));al=Math.max(al,v);if(al>=be)break}return v}
+  let v=Infinity;for(const o of opts){v=Math.min(v,ab([...path,o],al,be,cnt));be=Math.min(be,v);if(al>=be)break}return v}
+function ex(path,w){if(path.length===4)return util(...path);const d=path.length,[k,opts]=LV[d];
+  if(k==="MAX")return Math.max(...opts.map(o=>ex([...path,o],w)));
+  if(d===1)return opts.reduce((s,c)=>s+w[c]*ex([...path,c],w),0);
+  return opts.reduce((s,o)=>s+(o==="Complication"?PCOMP:1-PCOMP)*ex([...path,o],w),0)}
+function decide(w){const cm={n:1},cb={n:1},M={},A={},E={};let al=-Infinity;
+  for(const t of TR){M[t]=mm([t],cm);A[t]=ab([t],al,Infinity,cb);al=Math.max(al,A[t]);E[t]=ex([t],w)}
+  const arg=o=>Object.keys(o).reduce((a,b)=>o[b]>o[a]?b:a);
+  return {M,A,E,bestM:arg(M),bestA:arg(A),bestE:arg(E),nM:cm.n,nA:cb.n,total:94}}
+
+/* ---- CO3: CSP prescription ---- */
+const DRUGS={Paracetamol:[10,"analgesic"],Ibuprofen:[15,"NSAID"],Aspirin:[8,"NSAID"],Amoxicillin:[80,"antibiotic"],Azithromycin:[120,"antibiotic"],
+Oseltamivir:[250,"antiviral"],Ondansetron:[40,"antiemetic"],Metoclopramide:[20,"antiemetic"],ORS:[15,"fluid"],"IV fluids":[200,"fluid"]};
+const SLOTS={fever_pain:["Paracetamol","Ibuprofen","Aspirin"],infection:["Amoxicillin","Azithromycin","Oseltamivir"],nausea:["Ondansetron","Metoclopramide"],hydration:["ORS","IV fluids"]};
+const INFD={Pneumonia:["Amoxicillin","Azithromycin"],"Strep throat":["Amoxicillin","Azithromycin"],Influenza:["Oseltamivir"]};
+const ALLERGY={penicillin:["Amoxicillin"],nsaid:["Ibuprofen","Aspirin"]};
+const INTER=[["Azithromycin","Ondansetron"]];
+function banned(drug,p,dx){for(const a of p.allergies)if((ALLERGY[a]||[]).includes(drug))return "allergy to "+a;
+  if(DRUGS[drug][1]==="NSAID"&&p.conditions.includes("gastric_ulcer"))return "NSAID contraindicated with gastric ulcer";
+  if(DRUGS[drug][1]==="NSAID"&&dx==="Dengue")return "NSAIDs avoided in dengue (bleeding risk)";
+  if(drug==="Aspirin"&&p.age<16)return "aspirin avoided under 16 (Reye syndrome)";return null}
+function solveCSP(domains,budget,mrv,fc){const slots=Object.keys(domains);let n=0;const sols=[];
+  const ok=asg=>{const v=Object.values(asg);for(let i=0;i<v.length;i++)for(let j=i+1;j<v.length;j++)
+      if(INTER.some(([a,b])=>(v[i]===a&&v[j]===b)||(v[i]===b&&v[j]===a)))return false;return v.reduce((s,x)=>s+DRUGS[x][0],0)<=budget};
+  const bt=(asg,doms)=>{if(Object.keys(asg).length===slots.length){sols.push({...asg});return}
+    const un=slots.filter(s=>!(s in asg)),v=mrv?un.reduce((a,b)=>doms[b].length<doms[a].length?b:a):un[0];
+    for(const val of doms[v]){n++;const a2={...asg,[v]:val};if(!ok(a2))continue;let nd=doms;
+      if(fc){nd={};for(const s in doms)nd[s]=doms[s].slice();let good=true;
+        for(const u of un){if(u===v)continue;nd[u]=doms[u].filter(x=>ok({...a2,[u]:x}));if(!nd[u].length){good=false;break}}if(!good)continue}
+      bt(a2,nd)}};
+  bt({},Object.fromEntries(slots.map(s=>[s,domains[s].slice()])));return {sols,n}}
+function planRx(p,dx,nausea,budget=300){const slots=["fever_pain","hydration"];if(INFD[dx])slots.push("infection");if(nausea)slots.push("nausea");
+  const domains={},removed=[];for(const s of slots){domains[s]=[];for(const d of SLOTS[s]){let why=banned(d,p,dx);
+      if(s==="infection"&&!INFD[dx].includes(d))why="not indicated for "+dx;if(why)removed.push([s,d,why]);else domains[s].push(d)}}
+  const empty=Object.values(domains).some(d=>!d.length);if(empty)return {slots,domains,removed,budget,best:null,empty:true};
+  const plain=solveCSP(domains,budget,false,false),smart=solveCSP(domains,budget,true,true);
+  const cost=a=>Object.values(a).reduce((s,x)=>s+DRUGS[x][0],0);
+  const best=smart.sols.length?smart.sols.reduce((a,b)=>cost(b)<cost(a)?b:a):null;
+  return {slots,domains,removed,budget,best,cost:best?cost(best):0,nPlain:plain.n,nSmart:smart.n,count:smart.sols.length}}
+
+/* ---- CO5: k-means, Q-learning, accuracy ---- */
+function kmeans(vecs,k,iters=30,seed=3){const r=mulberry32(seed),idx=[];while(idx.length<k){const i=Math.floor(r()*vecs.length);if(!idx.includes(i))idx.push(i)}
+  let cents=idx.map(i=>vecs[i].slice()),cl;const dim=vecs[0].length;
+  for(let it=0;it<iters;it++){cl=Array.from({length:k},()=>[]);
+    vecs.forEach((v,i)=>{let bj=0,bd=1e9;for(let c=0;c<k;c++){let d=0;for(let t=0;t<dim;t++){const x=v[t]-cents[c][t];d+=x*x}if(d<bd){bd=d;bj=c}}cl[bj].push(i)});
+    const nc=cl.map((c,j)=>c.length?Array.from({length:dim},(_,t)=>c.reduce((a,i)=>a+vecs[i][t],0)/c.length):cents[j]);
+    if(J(nc)===J(cents))break;cents=nc}return {cents,cl}}
+function qlearn(episodes=4000,alpha=0.1,eps=0.2,seed=5){const r=mulberry32(seed);
+  const gauss=()=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r());const Q={};CO.forEach(c=>TR.forEach(a=>Q[c+"|"+a]=0));
+  for(let e=0;e<episodes;e++){const c=CO[Math.floor(r()*3)];let a;if(r()<eps)a=TR[Math.floor(r()*3)];else a=TR.reduce((x,y)=>Q[c+"|"+y]>Q[c+"|"+x]?y:x);
+    const rew=EFF[a][c]+10*gauss();Q[c+"|"+a]+=alpha*(rew-Q[c+"|"+a])}
+  const pol={},opt={};CO.forEach(c=>{pol[c]=TR.reduce((x,y)=>Q[c+"|"+y]>Q[c+"|"+x]?y:x);opt[c]=TR.reduce((x,y)=>EFF[y][c]>EFF[x][c]?y:x)});return {Q,pol,opt}}
+const CATEGORY={"Pneumonia":"Bacterial","Strep throat":"Bacterial","Influenza":"Viral","COVID-19":"Viral","Common cold":"Viral","Gastroenteritis":"Viral","Dengue":"Dengue"};
+</script>
+
+<script>
+/* ===================== UI ===================== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct=p=>Math.round(p*100)+"%";
+function h(tag,props,...kids){const e=document.createElement(tag);for(const k in (props||{})){if(k==="class")e.className=props[k];else if(k==="html")e.innerHTML=props[k];
+    else if(k.startsWith("on"))e.addEventListener(k.slice(2),props[k]);else e.setAttribute(k,props[k])}
+  for(const c of kids.flat())if(c!=null&&c!==false)e.append(c.nodeType?c:document.createTextNode(c));return e}
+const CO_LABEL={co1:"CO1 agent",co2:"CO2 search",co3:"CO3 decide",co4:"CO4 logic",co5:"CO5 learn"};
+const MODEL=fit(generate(3000,7));
+const SCEN={
+ dengue:{label:"Dengue-like fever",p:{name:"Alice",age:28,allergies:[],conditions:[],household:["Bob"]},sym:["fever","high_fever","headache","body_ache","joint_pain","rash"]},
+ pneumonia:{label:"Cough and breathlessness",p:{name:"Carol",age:60,allergies:["penicillin"],conditions:["gastric_ulcer"],household:["Dev"]},sym:["fever","high_fever","cough","shortness_of_breath","nausea","fatigue"]},
+ emergency:{label:"Chest pain emergency",p:{name:"Frank",age:60,allergies:[],conditions:[],household:[]},sym:["fever","cough","shortness_of_breath","chest_pain"]},
+ flu:{label:"Child with flu",p:{name:"Tom",age:5,allergies:[],conditions:[],household:["Meena"]},sym:["fever","cough","body_ache","fatigue","headache"]}};
+let S=null;
+const chat=$("#chat");
+
+function toBottom(){chat.scrollTop=chat.scrollHeight}
+function say(cls,node,wide){const m=h("div",{class:"msg "+cls+(wide?" wide":"")},node);chat.append(m);toBottom();return m}
+function log(co,text){const t=$("#trace");if(t.querySelector(".empty"))t.innerHTML="";
+  t.append(h("div",{class:"tr"},h("span",{class:"chip "+co},CO_LABEL[co]),h("span",{class:"trt"},text)));
+  const sc=t.closest(".scroll");sc.scrollTop=sc.scrollHeight}
+
+/* ---- tabs and views ---- */
+function openTab(t){$("#hood").dataset.tab=t;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.t===t)))}
+function openHood(t){openTab(t);setView("hood")}
+function setView(v){$("#app").dataset.view=v;document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.v===v)))}
+document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",()=>openTab(b.dataset.t)));
+document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.v)));
+
+/* ---- intake ---- */
+function intake(){
+  chat.innerHTML="";
+  const f=h("form",{class:"intake",id:"intake"},
+    h("label",{},"Name",h("input",{type:"text",id:"f-name",value:"Asha",autocomplete:"off"})),
+    h("label",{},"Age",h("input",{type:"number",id:"f-age",value:"34",min:"0",max:"110"})),
+    h("label",{class:"full"},"Allergies",h("span",{class:"checks"},
+      h("label",{},h("input",{type:"checkbox",id:"f-pen"}),"Penicillin"),h("label",{},h("input",{type:"checkbox",id:"f-nsaid"}),"NSAIDs (ibuprofen, aspirin)"))),
+    h("label",{class:"full"},"History",h("span",{class:"checks"},h("label",{},h("input",{type:"checkbox",id:"f-ulcer"}),"Gastric ulcer"))),
+    h("label",{class:"full"},"People you live with (names, comma separated)",h("input",{type:"text",id:"f-house",placeholder:"optional",autocomplete:"off"})),
+    h("div",{class:"full"},h("button",{class:"primary",type:"submit"},"Start consultation")));
+  f.addEventListener("submit",e=>{e.preventDefault();
+    const name=($("#f-name").value.trim()||"Patient"),age=Math.max(0,parseInt($("#f-age").value||"30",10));
+    const allergies=[];if($("#f-pen").checked)allergies.push("penicillin");if($("#f-nsaid").checked)allergies.push("nsaid");
+    begin({name,age,allergies,conditions:$("#f-ulcer").checked?["gastric_ulcer"]:[],household:$("#f-house").value.split(",").map(x=>x.trim()).filter(Boolean)},null)});
+  const chips=h("div",{class:"chips"},Object.entries(SCEN).map(([k,s])=>h("button",{type:"button",onclick:()=>begin({...s.p},new Set(s.sym))},s.label)));
+  say("agent hello",h("div",{},h("h2",{},"Hello, I'm the diagnostic agent."),
+    h("p",{},"Tell me a little about the patient, then answer yes or no. I'll show which AI technique I use at every step."),f,
+    h("span",{class:"lbl"},"Or watch an example play out automatically"),chips),true);
+}
+
+/* ---- session ---- */
+function begin(p,auto){
+  p.key=p.name.toLowerCase().replace(/[^a-z0-9]+/g,"_")||"patient";
+  p.household=p.household.map(x=>x.toLowerCase().replace(/[^a-z0-9]+/g,"_")).filter(Boolean);
+  S={p,auto,ev:{},asked:0,shown:new Set(),stage:"interview",facts:initialFacts(p),all:null,dis:[],removed:[],cur:null,pending:null,timer:null};
+  chat.innerHTML="";$("#trace").innerHTML="";$("#belief").innerHTML='<div class="empty">The probabilities appear after the first answer.</div>';
+  const bits=[p.name+", "+p.age+" years"];if(p.allergies.length)bits.push("allergic to "+p.allergies.join(", "));if(p.conditions.length)bits.push("history of "+p.conditions.join(", ").replace("_"," "));
+  say("user",bits.join(" · "));
+  say("agent","Thank you. I'll ask short questions and stop as soon as I'm confident, or after 10 questions.");
+  S.dis=MODEL.classes.filter(d=>p.age>=DIS[d].min);S.removed=MODEL.classes.filter(d=>!S.dis.includes(d));
+  log("co1","Agent loop started: percept (answer) → update state → reason → act (ask / diagnose / escalate).");
+  log("co3",`Age constraint keeps ${S.dis.length}/${MODEL.classes.length} diseases`+(S.removed.length?` (removed: ${S.removed.join(", ")})`:"."));
+  step();
+}
+const emerKey=()=>J(["Emergency",S.p.key]);
+function step(){
+  const {facts:all,derived}=forwardChain(S.facts,RULES);S.all=all;
+  for(const [n,a] of derived){const k=J(a);if(!S.shown.has(k)){S.shown.add(k);log("co4",`Forward chaining ${n}: derived ${fmtAtom(a)}`)}}
+  const post=posterior(MODEL,S.dis,S.ev);renderBelief(post);
+  if(all.has(emerKey()))return finish("EMERGENCY rule fired: the agent stops diagnosing and escalates.",post);
+  const pend=nearMisses(S.p.key,all).find(([s])=>askable(s,S.ev));
+  const best=Object.entries(post).sort((a,b)=>b[1]-a[1])[0];
+  if(!pend&&best[1]>=0.85)return finish(`Goal reached: confidence ${pct(best[1])} is at least 85%.`,post);
+  if(S.asked>=10)return finish("Question budget of 10 used up.",post);
+  let sym,meta;
+  if(pend){sym=pend[0];meta=`Safety check: rule ${pend[1]} is one symptom from firing`;log("co4",`Safety override: rule ${pend[1]} is one symptom from firing, so '${sym}' is asked before concluding.`)}
+  else{const ranked=S.dis&&KEYS.filter(s=>askable(s,S.ev)).map(s=>[infoGain(MODEL,s,S.dis,S.ev,post),s]).sort((a,b)=>b[0]-a[0]);
+    if(!ranked.length)return finish("No more useful questions.",post);
+    sym=ranked[0][1];meta=`Chosen for the highest information gain: ${ranked[0][0].toFixed(2)} bits`;
+    log("co2",`Greedy best-first: asks '${sym}' (info gain ${ranked[0][0].toFixed(2)} bits). Next best: ${ranked.slice(1,3).map(r=>r[1]+" "+r[0].toFixed(2)).join(", ")}.`)}
+  S.asked++;ask1(sym,meta)}
+
+function ask1(sym,meta){
+  S.cur=sym;
+  const yes=h("button",{class:"yes",type:"button"},"Yes"),no=h("button",{type:"button"},"No"),ns=h("button",{type:"button"},"Not sure");
+  const row=h("div",{class:"answers"},yes,no,ns);
+  const m=say("agent",h("div",{},h("div",{},`${S.asked}. ${QTEXT[sym]}`),h("span",{class:"meta"},meta),row));
+  const go=v=>{row.querySelectorAll("button").forEach(b=>b.disabled=true);answer(v)};
+  yes.onclick=()=>go(true);no.onclick=()=>go(false);ns.onclick=()=>go(null);
+  if(S.auto){row.querySelectorAll("button").forEach(b=>b.disabled=true);S.timer=setTimeout(()=>go(S.auto.has(sym)),650)}
+  else yes.focus({preventScroll:true})}
+
+function answer(v){
+  const sym=S.cur;say("user",v===true?"Yes":v===false?"No":"Not sure");
+  S.ev[sym]=v;if(v===true)S.facts.set(J(["Has",S.p.key,sym]),["Has",S.p.key,sym]);
+  if(v===false&&IMPL[sym]){S.ev[IMPL[sym]]=false;log("co3",`Constraint propagation: ${sym}=NO implies ${IMPL[sym]}=NO, so it is never asked.`)}
+  const post=posterior(MODEL,S.dis,S.ev);
+  log("co5",`Bayes belief: ${Object.entries(post).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([d,p])=>d+" "+pct(p)).join(", ")}`);
+  if(S.stage==="nausea"){S.stage="done";return complete(S.pending.reason,S.pending.post)}
+  step()}
+
+function renderBelief(post){
+  const rows=Object.entries(post).sort((a,b)=>b[1]-a[1]);
+  $("#belief").innerHTML=rows.map(([d,p])=>`<div class="bar"><span class="bn">${esc(d)}</span><span class="bt"><i style="width:${(p*100).toFixed(1)}%"></i></span><span class="bp">${pct(p)}</span></div>`).join("")
+   +(S&&S.removed.length?`<p class="note">Removed by the age constraint: ${esc(S.removed.join(", "))}.</p>`:"")}
+
+/* ---- finishing ---- */
+function finish(reason,post){
+  const ranked=Object.entries(post).sort((a,b)=>b[1]-a[1]);
+  if(S.all.has(emerKey()))return complete(reason,post);
+  const dx=ranked[0][0];
+  if(CATEGORY[dx]&&!Object.prototype.hasOwnProperty.call(S.ev,"nausea")){
+    S.stage="nausea";S.pending={reason,post};S.asked++;
+    log("co3","Prescription solver needs one more fact (nausea) to decide whether an anti-nausea slot is required.");
+    return ask1("nausea","Medication check before prescribing")}
+  complete(reason,post)}
+
+function complete(reason,post){
+  const p=S.p,all=S.all,ranked=Object.entries(post).sort((a,b)=>b[1]-a[1]),emergency=all.has(emerKey());
+  const goals=emergency?[["Emergency",p.key],["RedFlag",p.key,"?why"]]:[["Suspects",p.key,"?d"],["Isolate","?who"],["AtRisk","?q","?d"]];
+  const qres=goals.map(g=>[g,ask(g,S.facts)]);
+  renderLogicLive(all,qres);
+  const bars=h("div",{html:ranked.slice(0,4).map(([d,q])=>`<div class="bar"><span class="bn">${esc(d)}</span><span class="bt"><i style="width:${(q*100).toFixed(1)}%"></i></span><span class="bp">${pct(q)}</span></div>`).join("")});
+  const card=h("div",{class:"result"});
+  if(emergency){
+    log("co1","Action: ESCALATE. No routine treatment plan is made.");
+    card.append(h("h3",{},"Emergency signs detected"),
+      h("div",{class:"banner crit"},"Shortness of breath with chest pain is a red flag. Seek immediate medical care."),
+      h("p",{class:"sub"},reason),h("span",{class:"lbl"},"Why (first-order logic)"),
+      h("div",{class:"mono"},qres.map(([g,a])=>h("div",{},"?- "+fmtAtom(g)+"  →  "+(a.length?a.map(fmtAtom).join(", "):"false")))),
+      h("div",{class:"links"},h("button",{type:"button",onclick:()=>openHood("logic")},"See the logic proof")),
+      h("div",{class:"disc"},"Educational demo, not medical advice."));
+    say("agent",card,true);return}
+  const dx=ranked[0][0];
+  log("co1",`Diagnosis: ${dx} (${pct(ranked[0][1])}). Now planning tests, treatment and prescription.`);
+  card.append(h("h3",{},`Most likely: ${dx}`),h("p",{class:"sub"},reason),bars);
+  const plan=h("ul",{class:"plan"});
+  const dis=S.dis&&null;
+  // pathway
+  if(GOALS[dx]){const a=search("A*","Triage",GOALS[dx]);renderPath(dx);
+    log("co2",`A* pathway to confirm ${dx}: ${a.path.join(" → ")} (cost ${a.cost}, ${a.expanded} nodes expanded).`);
+    plan.append(h("li",{},h("span",{class:"chip co2"},"CO2"),h("span",{},h("b",{},"Confirm with: "),a.path.slice(1,-1).join(" → ")+` (cost ${a.cost}, found by A*)`)))}
+  else{renderPath("Pneumonia");plan.append(h("li",{},h("span",{class:"chip co2"},"CO2"),h("span",{},h("b",{},"Confirmation: "),"clinical diagnosis, no test pathway in this graph")))}
+  // treatment
+  let w=null;
+  if(CATEGORY[dx]){w={Bacterial:0,Viral:0,Dengue:0};for(const [d,q] of ranked)if(CATEGORY[d])w[CATEGORY[d]]+=q;
+    const s=w.Bacterial+w.Viral+w.Dengue||1;for(const c in w)w[c]/=s;setSliders(w);const r=decide(w);
+    log("co3",`Minimax picks ${r.bestM}; alpha-beta agrees after ${r.nA}/${r.total} nodes; expectimax picks ${r.bestE}.`);
+    plan.append(h("li",{},h("span",{class:"chip co3"},"CO3"),h("span",{},h("b",{},"Treatment: "),`${r.bestE} is best on expected outcome; ${r.bestM} is the safest worst-case choice.`)))}
+  else{setSliders({Bacterial:.1,Viral:.8,Dengue:.1});plan.append(h("li",{},h("span",{class:"chip co3"},"CO3"),h("span",{},h("b",{},"Treatment: "),"not infectious, so the antibiotic and antiviral decision tree does not apply")))}
+  // prescription
+  if(CATEGORY[dx]){const rx=planRx(p,dx,!!S.ev.nausea);renderCSP(p,dx,!!S.ev.nausea);
+    log("co3",rx.best?`CSP prescription: ${Object.values(rx.best).join(", ")} (cost ${rx.cost}). Plain backtracking tried ${rx.nPlain} assignments, MRV + forward checking ${rx.nSmart}.`:"CSP found no safe prescription.");
+    plan.append(h("li",{},h("span",{class:"chip co3"},"CO3"),h("span",{},h("b",{},"Prescription: "),rx.best?`${Object.values(rx.best).join(" + ")} (cost ${rx.cost})`:"no safe combination, refer to a doctor")))}
+  else renderCSP(p,"Pneumonia",false,true);
+  // household
+  const risk=qres.find(([g])=>g[0]==="AtRisk");
+  if(risk&&risk[1].length)plan.append(h("li",{},h("span",{class:"chip co4"},"CO4"),h("span",{},h("b",{},"Household: "),risk[1].map(a=>`${a[1]} is at risk of ${a[2]}`).join("; ")+". Isolate "+p.name+".")));
+  card.append(plan,h("div",{class:"links"},
+    h("button",{type:"button",onclick:()=>openHood("trace")},"Live trace"),h("button",{type:"button",onclick:()=>openHood("path")},"Search"),
+    h("button",{type:"button",onclick:()=>openHood("decide")},"Decisions"),h("button",{type:"button",onclick:()=>openHood("logic")},"Logic")),
+    h("div",{class:"disc"},"Educational demo with synthetic data. Not medical advice. See a doctor."));
+  say("agent",card,true)}
+
+/* ---- panels ---- */
+function renderPath(sel){
+  const box=$("#pathsel");box.innerHTML="";
+  Object.keys(GOALS).forEach(d=>box.append(h("button",{type:"button","aria-pressed":String(d===sel),onclick:()=>renderPath(d)},d)));
+  const goal=GOALS[sel],res=ALGOS.map(([a,k])=>[a,k,search(a,"Triage",goal)]),opt=res.find(r=>r[0]==="UCS")[2].cost,h0=hTable(goal)["Triage"];
+  $("#pathout").innerHTML=`<p class="note" style="margin-top:0">Goal <span class="mono">${goal}</span>. Heuristic at start h(Triage) = ${h0} (waiting costs ignored), true optimum = ${opt}, so h never overestimates.</p>
+  <div class="tbl"><table><thead><tr><th>Algorithm</th><th>Type</th><th class="num">Cost</th><th class="num">Expanded</th><th>Optimal</th><th>Path</th></tr></thead><tbody>`+
+  res.map(([a,k,r])=>`<tr class="${a==="A*"?"hl":""}"><td><b>${a}</b></td><td>${k}</td><td class="num">${r.cost}</td><td class="num">${r.expanded}</td><td><span class="pill ${r.cost===opt?"ok":"no"}">${r.cost===opt?"yes":"no"}</span></td><td class="mono">${r.path.join(" → ")}</td></tr>`).join("")+
+  `</tbody></table></div>
+  <ul class="steps note"><li>BFS minimises the number of steps, not the cost, so it can return an expensive path.</li><li>DFS dives deep and has no optimality guarantee.</li><li>UCS and A* are optimal; A* expands fewer nodes because the heuristic guides it.</li><li>Greedy follows the heuristic only and can miss the cheapest path.</li></ul>`}
+function setSliders(w){
+  const box=$("#sliders");box.innerHTML="";
+  CO.forEach(c=>{const r=h("input",{type:"range",min:"0",max:"100",value:String(Math.round(w[c]*100)),id:"w-"+c,"aria-label":c+" weight"}),o=h("span",{class:"mono"},String(Math.round(w[c]*100)));
+    r.addEventListener("input",()=>{o.textContent=r.value;recomputeTreat()});box.append(h("label",{},c,r,o))});
+  recomputeTreat()}
+function recomputeTreat(){
+  const raw=Object.fromEntries(CO.map(c=>[c,+$("#w-"+c).value])),s=raw.Bacterial+raw.Viral+raw.Dengue;
+  const w=s?Object.fromEntries(CO.map(c=>[c,raw[c]/s])):{Bacterial:1/3,Viral:1/3,Dengue:1/3},r=decide(w);
+  $("#treatout").innerHTML=`<div class="tbl"><table><thead><tr><th>Treatment</th><th class="num">Minimax (worst case)</th><th class="num">Expectimax (expected)</th></tr></thead><tbody>`+
+  TR.map(t=>`<tr><td><b>${t}</b></td><td class="num">${r.M[t]}${t===r.bestM?' <span class="pill ok">pick</span>':""}</td><td class="num">${r.E[t].toFixed(1)}${t===r.bestE?' <span class="pill ok">pick</span>':""}</td></tr>`).join("")+
+  `</tbody></table></div><p class="note">Alpha-beta reaches the same decision (${r.bestA}) after visiting ${r.nA} of ${r.total} tree nodes, so ${r.total-r.nA} are pruned. Minimax visits all ${r.nM}.</p>`+
+  (r.bestM!==r.bestE?`<p class="note">The two disagree because minimax guards against the worst condition while expectimax bets on the likely one.</p>`:"")}
+function renderCSP(p,dx,nausea,sample){
+  const q=sample?{age:60,allergies:["penicillin"],conditions:["gastric_ulcer"]}:p,nz=sample?true:nausea,d=sample?"Pneumonia":dx,rx=planRx(q,d,nz);
+  const lbl=sample?"Example patient: 60 years, penicillin allergy, gastric ulcer, nauseous, pneumonia.":`Patient ${esc(p.name)}, diagnosis ${esc(dx)}.`;
+  $("#cspout").innerHTML=`<p class="sub">${lbl} Slots are variables, drugs are domain values.</p>
+  <h4>Unary constraints removed values</h4>`+(rx.removed.length?`<div class="tbl"><table><tbody>`+rx.removed.map(([s,dr,w])=>`<tr><td class="mono">${s}</td><td>${dr}</td><td>${w}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="note">None.</p>`)+
+  `<h4>Other constraints</h4><p class="note" style="margin-top:0">Azithromycin and Ondansetron cannot be combined (QT prolongation). Total cost must be at most ${rx.budget}.</p>
+  <h4>Solution</h4>`+(rx.best?`<div class="tbl"><table><tbody>`+Object.entries(rx.best).map(([s,dr])=>`<tr><td class="mono">${s}</td><td><b>${dr}</b></td><td class="num">${DRUGS[dr][0]}</td></tr>`).join("")+
+   `<tr><td></td><td><b>Total</b></td><td class="num"><b>${rx.cost}</b></td></tr></tbody></table></div><p class="note">Plain backtracking tried ${rx.nPlain} assignments. MRV (smallest domain first) with forward checking tried ${rx.nSmart}. Both found ${rx.count} valid plan(s).</p>`
+   :`<div class="banner warn">No safe combination satisfies every constraint. Refer to a doctor.</div>`)}
+function renderLogicLive(all,qres){
+  const derived=[...all.values()].filter(a=>!["Has","LivesWith","Contagious"].includes(a[0]));
+  $("#logiclive").innerHTML=`<h4 style="margin-top:0">This patient</h4><p class="note" style="margin-top:0">Derived facts: ${derived.length?derived.map(a=>`<span class="mono">${esc(fmtAtom(a))}</span>`).join(", "):"none"}</p>
+  <p class="note">Backward chaining queries:</p><div class="mono">`+qres.map(([g,a])=>`<div>?- ${esc(fmtAtom(g))} → ${a.length?esc(a.map(fmtAtom).join(", ")):"false"}</div>`).join("")+`</div>`}
+function staticLogic(){
+  $("#rules").innerHTML=RULES.map(([n,pr,c])=>`<div class="rule"><b>${n}</b> ${esc(fmtRule(pr,c))}</div>`).join("");
+  const ex=[[["Has","?p","fever"],["Has","alice","fever"]],[["Knows","john","?x"],["Knows","?y",["Mother","?y"]]],[["Has","alice","fever"],["Has","bob","fever"]],["?x",["f","?x"]]];
+  $("#unif").innerHTML=ex.map(([a,b])=>{const th=unify(a,b,{});const f=t=>Array.isArray(t)?fmtAtom(t):String(t).replace(/^\?/,"");
+    return `<div class="rule">unify(${esc(f(a))}, ${esc(f(b))}) = ${th===null?"<b>FAIL</b>"+(a==="?x"?" (occur check)":""):esc(fmtTheta(th))}</div>`}).join("");
+  const facts=new Map(BASE_FACTS.map(a=>[J(a),a]));
+  [["alice",["fever","joint_pain","rash","vomiting"]],["tom",["fever","cough","body_ache"]]].forEach(([n,ss])=>ss.forEach(s=>{const a=["Has",n,s];facts.set(J(a),a)}));
+  [["tom","meena"],["alice","bob"]].forEach(([a,b])=>[["LivesWith",a,b],["LivesWith",b,a]].forEach(x=>facts.set(J(x),x)));
+  const consts=constantsOf(facts),t0=performance.now(),fol=forwardChain(facts,RULES),t1=performance.now(),gr=groundRules(consts),pr=propChain(facts,gr),t2=performance.now();
+  const nPersons=4,other=consts.length-nPersons;
+  $("#ground").innerHTML=`<div class="tbl"><table><tbody>
+   <tr><th>Lifted FOL</th><td>${RULES.length} rules, ${fol.derived.length} new facts in ${(t1-t0).toFixed(1)} ms</td></tr>
+   <tr><th>Propositionalised</th><td>${gr.length.toLocaleString()} ground rules (${consts.length} constants), ${pr.n} new facts in ${(t2-t1).toFixed(1)} ms</td></tr>
+   <tr><th>Same conclusions</th><td>${fol.derived.length===pr.n?'<span class="pill ok">yes</span>':'<span class="pill no">no</span>'}</td></tr></tbody></table></div>
+   <h4>How the propositional rule set grows</h4><div class="tbl"><table><thead><tr><th class="num">People</th><th class="num">Ground rules</th><th class="num">FOL rules</th></tr></thead><tbody>`+
+   [4,10,100,1000].map(n=>`<tr><td class="num">${n}</td><td class="num">${groundedCount(n+other).toLocaleString()}</td><td class="num">${RULES.length}</td></tr>`).join("")+
+   `</tbody></table></div><p class="note">Variables and unification let one first-order rule stand for every grounding. Untyped grounding is the worst case; typed variables shrink it.</p>`}
+function learning(){
+  const data=generate(3000,7),train=data.slice(0,2400),test=data.slice(2400),nb=fit(train);let t1=0,t3=0;
+  for(const [row,d] of test){const ev={};KEYS.forEach(s=>ev[s]=!!row[s]);const r=Object.entries(posterior(nb,nb.classes,ev)).sort((a,b)=>b[1]-a[1]);
+    if(r[0][0]===d)t1++;if(r.slice(0,3).some(x=>x[0]===d))t3++}
+  const maj=Object.entries(train.reduce((m,[,d])=>(m[d]=(m[d]||0)+1,m),{})).sort((a,b)=>b[1]-a[1])[0][0],base=test.filter(([,d])=>d===maj).length/test.length;
+  const vecs=data.map(([r])=>KEYS.map(s=>r[s])),{cents,cl}=kmeans(vecs,5);let pure=0;
+  const rows=cl.map((c,j)=>{const cnt={};c.forEach(i=>cnt[data[i][1]]=(cnt[data[i][1]]||0)+1);const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);pure+=top[0][1];
+    const sig=KEYS.map((s,i)=>[s,cents[j][i]]).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]);
+    return `<tr><td class="num">${c.length}</td><td class="mono">${sig.join(", ")}</td><td>${top.slice(0,2).map(([d,n])=>d+" "+pct(n/c.length)).join(", ")}</td></tr>`}).join("");
+  const q=qlearn();
+  $("#learnout").innerHTML=`<h4 style="margin-top:0"><span class="chip co5">Supervised</span> Naive Bayes on held-out patients</h4>
+  <div class="tbl"><table><tbody><tr><th>Baseline (most common disease)</th><td class="num">${pct(base)}</td></tr><tr><th>Naive Bayes top-1</th><td class="num"><b>${pct(t1/test.length)}</b></td></tr><tr><th>Naive Bayes top-3</th><td class="num">${pct(t3/test.length)}</td></tr></tbody></table></div>
+  <p class="note">Learned versus true values: P(joint_pain | Dengue) true ${DIS.Dengue.p.joint_pain.toFixed(2)}, learned ${nb.p["Dengue|joint_pain"].toFixed(2)}. P(itchy_eyes | Allergic rhinitis) true ${DIS["Allergic rhinitis"].p.itchy_eyes.toFixed(2)}, learned ${nb.p["Allergic rhinitis|itchy_eyes"].toFixed(2)}.</p>
+  <p class="note">The score is high partly because the synthetic data follow Naive Bayes's own independence assumption. Real records would score lower.</p>
+  <h4><span class="chip co5">Unsupervised</span> k-means with k = 5, labels hidden</h4>
+  <div class="tbl"><table><thead><tr><th class="num">Patients</th><th>Signature symptoms</th><th>Mostly</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="note">Purity ${pct(pure/data.length)}: groups of similar patients are found without knowing the diagnosis.</p>
+  <h4><span class="chip co5">Reinforcement</span> Q-learning of the best treatment (4000 trials, ε-greedy)</h4>
+  <div class="tbl"><table><thead><tr><th>Condition</th>${TR.map(t=>`<th class="num">${t}</th>`).join("")}<th>Learned</th><th>Best possible</th></tr></thead><tbody>`+
+  CO.map(c=>`<tr><td>${c}</td>${TR.map(t=>`<td class="num">${q.Q[c+"|"+t].toFixed(1)}</td>`).join("")}<td><b>${q.pol[c]}</b></td><td>${q.opt[c]}</td></tr>`).join("")+
+  `</tbody></table></div><p class="note">Update rule: Q(s,a) ← Q(s,a) + α (reward − Q(s,a)), with single-step episodes (γ = 0).</p>`}
+
+/* ---- boot ---- */
+$("#restart").addEventListener("click",()=>{if(S&&S.timer)clearTimeout(S.timer);S=null;$("#trace").innerHTML='<div class="empty">Start a consultation to watch the agent reason.</div>';
+  $("#belief").innerHTML='<div class="empty">The probabilities appear after the first answer.</div>';intake();setView("chat")});
+intake();renderPath("Pneumonia");setSliders({Bacterial:.1,Viral:.8,Dengue:.1});renderCSP(null,"",false,true);staticLogic();
+$("#logiclive").innerHTML='<div class="empty">Run a consultation to see the facts and queries for a patient.</div>';
+setTimeout(learning,30);
+</script>
+
+</body></html>
