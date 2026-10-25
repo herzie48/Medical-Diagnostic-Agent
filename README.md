@@ -113,4 +113,4 @@ Patient answers ──► CO1 agent loop
 - Nothing here has been clinically validated.
 ## Further reading
  
-`GUIDE.md` has the detailed explanation of each module, a 12-minute presentation plan and likely viva questions with short answers.
+`GUIDE.md` has the detailed explanation of each module.
